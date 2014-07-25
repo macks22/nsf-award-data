@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+
+<xsd:schema attributeFormDefault="unqualified" elementFormDefault="qualified" version="1.0" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <xsd:element name="rootTag">
+    <xsd:complexType>
+      <xsd:sequence>
+        
+        <xsd:element name="Award">
+          <xsd:complexType>
+            <xsd:sequence>
+              <xsd:element name="AwardTitle" type="xsd:string" />
+              <xsd:element name="AwardEffectiveDate" type="xsd:dateTime" />
+              <xsd:element name="AwardExpirationDate" type="xsd:dateTime" />
+              <xsd:element name="AwardAmount" type="xsd:int" />
+              
+              <xsd:element name="AwardInstrument">
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="Value" type="xsd:string" />
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              
+              <xsd:element name="Organization">
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="Code" type="xsd:int" />
+                    <xsd:element name="Directorate">
+                      <xsd:complexType>
+                        <xsd:sequence>
+                          <xsd:element name="LongName" type="xsd:string" />
+                        </xsd:sequence>
+                      </xsd:complexType>
+                    </xsd:element>
+                    <xsd:element name="Division">
+                      <xsd:complexType>
+                        <xsd:sequence>
+                          <xsd:element name="LongName" type="xsd:string" />
+                        </xsd:sequence>
+                      </xsd:complexType>
+                    </xsd:element>
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              
+              <xsd:element name="ProgramOfficer">
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="SignBlockName" type="xsd:string" />
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              
+              <xsd:element name="AbstractNarration" type="xsd:string" />
+              <xsd:element name="MinAmdLetterDate" type="xsd:dateTime" />
+              <xsd:element name="MaxAmdLetterDate" type="xsd:dateTime" />
+              <xsd:element name="ARRAAmount" type="xsd:string" />
+              <xsd:element name="AwardID" type="xsd:int" />
+              
+              <xsd:element maxOccurs="unbounded" name="Investigator">
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="FirstName" type="xsd:string" />
+                    <xsd:element name="LastName" type="xsd:string" />
+                    <xsd:element name="EmailAddress" type="xsd:string" />
+                    <xsd:element name="StartDate" type="xsd:dateTime" />
+                    <xsd:element name="EndDate" type="xsd:string" />
+                    <xsd:element name="RoleCode" type="xsd:int" />
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              
+              <xsd:element maxOccurs="unbounded" name="Institution">
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="Name" type="xsd:string" />
+                    <xsd:element name="CityName" type="xsd:string" />
+                    <xsd:element name="ZipCode" type="xsd:int" />
+                    <xsd:element name="PhoneNumber" type="xsd:decimal" />
+                    <xsd:element name="StreetAddress" type="xsd:string" />
+                    <xsd:element name="CountryName" type="xsd:string" />
+                    <xsd:element name="StateName" type="xsd:string" />
+                    <xsd:element name="StateCode" type="xsd:string" />
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              
+              <xsd:element maxOccurs="unbounded" name="FoaInformation">
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="Code" type="xsd:int" />
+                    <xsd:element name="Name" type="xsd:string" />
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              
+              <xsd:element maxOccurs="unbounded" name="ProgramElement">
+                <xsd:complexType>
+                  <xsd:sequence>
+                    <xsd:element name="Code" type="xsd:int" />
+                    <xsd:element name="Text" type="xsd:string" />
+                  </xsd:sequence>
+                </xsd:complexType>
+              </xsd:element>
+              
+              <xsd:element maxOccurs="unbounded" name="ProgramReference">
+	        <xsd:complexType>
+		 <xsd:sequence>
+		  <xsd:element name="Code" type="xsd:int" />
+		  <xsd:element name="Text" type="xsd:string" />
+		 </xsd:sequence>
+	        </xsd:complexType>
+              </xsd:element>
+              
+              
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>
