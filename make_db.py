@@ -1,9 +1,13 @@
 import re
 import sys
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship, backref
-from sqlalchemy import (Column, String, Text, Integer, Enum,
-                        DATETIME, CHAR, FLOAT, ForeignKey)
+from sqlalchemy import (
+    Column, String, Text, Integer, Enum,
+    DATETIME, CHAR, FLOAT,
+    ForeignKey, CheckConstraint
+)
 
 
 Base = declarative_base()
@@ -50,19 +54,37 @@ class Program(MixinHelper, Base):
     code = Column(CHAR(4), unique=True)
     name = Column(String(80))
     div_id = Column(CHAR(4), ForeignKey('division.id', ondelete='CASCADE'))
-    related_programs = relationship(
-        'Program', secondary='related_programs')
+    related_programs = association_proxy(
+        '_related_programs', 'secondary_programs')
 
 
 class RelatedPrograms(MixinHelper, Base):
-    pgm1_code = Column(
+    pgm1_id = Column(
         Integer,
         ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
-    pgm2_code = Column(
+    pgm2_id = Column(
         Integer,
         ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
+
+    main_program = relationship(
+        'Program', foreign_keys='RelatedPrograms.pgm1_id',
+        backref=backref('_related_programs', cascade='all, delete-orphan',
+                        passive_deletes=True)
+    )
+
+    secondary_programs = relationship(
+        'Program', foreign_keys='RelatedPrograms.pgm2_id',
+        cascade='all, delete-orphan', passive_deletes=True)
+
+    __table_args__ = (
+        CheckConstraint(pgm1_id != pgm2_id),
+    )
+
+    def __init__(self, pgm1_id, pgm2_id):
+        self.pgm1_id = pgm1_id
+        self.pgm2_id = pgm2_id
 
 
 class Award(MixinHelper, Base):
@@ -76,12 +98,30 @@ class Award(MixinHelper, Base):
     amount = Column(Integer)
     arra_amount = Column(Integer)
     instrument = Column(String(100))
+
     publications = relationship(
         'Publication', backref=backref('award', uselist=False))
-    institutions = relationship(
-        'Institution', secondary='affiliation', backref='awards')
-    funding_programs = relationship(
-        'Program', secondary='funding', backref='awards_funded')
+    institutions = association_proxy('affiliations', 'institution')
+    people = association_proxy('affiliations', 'person')
+    funding_programs = association_proxy('_funding_programs', 'program')
+
+
+class Funding(MixinHelper, Base):
+    pgm_id = Column(Integer, ForeignKey('program.id'), primary_key=True)
+    award_id = Column(Integer, ForeignKey('award.id'), primary_key=True)
+
+    award = relationship(
+        'Award', backref=backref('_funding_programs',
+                                 cascade='all, delete-orphan',
+                                 passive_deletes=True)
+    )
+
+    program = relationship(
+        'Program', cascade='all, delete-orphan', passive_deletes=True)
+
+    def __init__(self, pgm_id, award_id):
+        self.pgm_id = pgm_id
+        self.award_id = award_id
 
 
 class Publication(MixinHelper, Base):
@@ -112,11 +152,11 @@ class Address(MixinHelper, Base):
     id = Column(Integer, primary_key=True)
     unit = Column(String(20))
     bldg = Column(String(50))
-    street = Column(String(50))
-    city = Column(String(50))
-    state = Column(CHAR(2), ForeignKey('state.abbr'))
-    country = Column(CHAR(2), ForeignKey('country.alpha2'))
-    zipcode = Column(String(10))
+    street = Column(String(50), nullable=False)
+    city = Column(String(50), nullable=False)
+    state = Column(CHAR(2), ForeignKey('state.abbr'), nullable=False)
+    country = Column(CHAR(2), ForeignKey('country.alpha2'), nullable=False)
+    zipcode = Column(String(10), nullable=False)
     lat = Column(FLOAT)
     lon = Column(FLOAT)
 
@@ -128,10 +168,7 @@ class Institution(MixinHelper, Base):
     address_id = Column(Integer, ForeignKey('address.id', ondelete='SET NULL'))
     address = relationship('Address', uselist=False)
 
-
-class Funding(MixinHelper, Base):
-    award_id = Column(Integer, ForeignKey('award.id'), primary_key=True)
-    pgm_id = Column(CHAR(4), ForeignKey('program.id'), primary_key=True)
+    people = association_proxy('_people', 'person')
 
 
 class Person(MixinHelper, Base):
@@ -141,12 +178,8 @@ class Person(MixinHelper, Base):
     middle_init = Column(CHAR(1))
     email = Column(String(100), unique=True)
 
-    roles = relationship(
-        'Award', secondary='role', backref='people')
-    publications = relationship(
-        'Publication', secondary='author', backref='authors')
-    affiliations = relationship(
-        'Institution', secondary='affiliation', backref='people')
+    publications = association_proxy('_publications', 'publication')
+    institutions = association_proxy('affiliations', 'institution')
 
     @property
     def full_name(self):
@@ -166,12 +199,43 @@ class Author(MixinHelper, Base):
         ForeignKey('publication.id', ondelete='CASCADE'),
         primary_key=True)
 
+    person = relationship(
+        'Person', backref=backref('_publications',
+                                  cascade='all, delete-orphan',
+                                  passive_deletes=True)
+    )
 
-class Affiliation(MixinHelper, Base):
+    publication = relationship(
+        'Publication', cascade='all, delete-orphan', passive_deletes=True)
+
+    def __init__(self, person_id, pub_id):
+        self.person_id = person_id
+        self.pub_id = pub_id
+
+
+class Role(MixinHelper, Base):
+    person_id = Column(
+        Integer,
+        ForeignKey('person.id', ondelete='CASCADE'),
+        primary_key=True)
     award_id = Column(
         Integer,
         ForeignKey('award.id', ondelete='CASCADE'),
         primary_key=True)
+    role = Column(Enum('pi', 'co-pi', 'po', 'co-po'))
+    start = Column(DATETIME)
+    end = Column(DATETIME)
+
+    person = relationship(
+        'Person', backref=backref('awards', cascade='all, delete-orphan',
+                                  passive_deletes=True)
+    )
+
+    award = relationship(
+        'Award', cascade='all, delete-orphan', passive_deletes=True)
+
+
+class Affiliation(MixinHelper, Base):
     person_id = Column(
         Integer,
         ForeignKey('person.id', ondelete='CASCADE'),
@@ -180,25 +244,36 @@ class Affiliation(MixinHelper, Base):
         Integer,
         ForeignKey('institution.id', ondelete='CASCADE'),
         primary_key=True)
-
-
-class Role(MixinHelper, Base):
     award_id = Column(
         Integer,
         ForeignKey('award.id', ondelete='CASCADE'),
         primary_key=True)
-    person_id = Column(
-        Integer,
-        ForeignKey('person.id', ondelete='CASCADE'),
-         primary_key=True)
-    role = Column(Enum('pi', 'co-pi', 'po', 'co-po'))
-    start = Column(DATETIME)
-    end = Column(DATETIME)
+
+    person = relationship(
+        'Person', backref=backref('affiliations', cascade='all, delete-orphan',
+                                  passive_deletes=True)
+    )
+
+    institution = relationship(
+        'Institution', backref=backref('affiliations',
+                                       cascade='all, delete-orphan',
+                                       passive_deletes=True)
+    )
+
+    award = relationship(
+        'Award', backref=backref('affiliations', cascade='all, delete-orphan',
+                                 passive_deletes=True)
+    )
+
+    def __init__(self, person_id, institution_id, award_id):
+        self.person_id = person_id
+        self.institution_id = institution_id
+        self.award_id = award_id
 
 
 def main():
     from sqlalchemy import create_engine
-    engine = create_engine('sqlite:///nsftest.db')
+    engine = create_engine('sqlite:///nsf-award-data.db')
     Base.metadata.create_all(engine)
     return 0
 
