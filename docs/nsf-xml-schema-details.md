@@ -60,6 +60,7 @@ a `rootTag>`, followed by an `<Award>` tag which contains the following elements
         "Cooperative Agreement", "Contract").
 
 11. **Organization** (_sequence_): The NSF organization(s) funding the grant.
+    _Note_: there are no awards with more than one <Organization> tag.
     1.  **Code** (_int_): No one seems to know what this actually represents.
             Perhaps it can be a challenge for some daring historian/researcher to discover.
     2.  **Directorate** (_sequence_): Listing of directorates funding this award.
