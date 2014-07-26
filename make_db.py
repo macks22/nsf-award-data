@@ -107,8 +107,14 @@ class Award(MixinHelper, Base):
 
 
 class Funding(MixinHelper, Base):
-    pgm_id = Column(Integer, ForeignKey('program.id'), primary_key=True)
-    award_id = Column(Integer, ForeignKey('award.id'), primary_key=True)
+    pgm_id = Column(
+        Integer,
+        ForeignKey('program.id', ondelete='CASCADE'),
+        primary_key=True)
+    award_id = Column(
+        Integer,
+        ForeignKey('award.id', ondelete='CASCADE'),
+        primary_key=True)
 
     award = relationship(
         'Award', backref=backref('_funding_programs',
