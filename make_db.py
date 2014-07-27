@@ -148,16 +148,12 @@ class State(MixinHelper, Base):
 
 
 class Country(MixinHelper, Base):
-    id = Column(Integer, primary_key=True)
     alpha2 = Column(CHAR(2), nullable=False, unique=True)
-    alpha3 = Column(CHAR(3), nullable=False, unique=True)
     name = Column(String(100), nullable=False)
 
 
 class Address(MixinHelper, Base):
     id = Column(Integer, primary_key=True)
-    unit = Column(String(20))
-    bldg = Column(String(50))
     street = Column(String(50), nullable=False)
     city = Column(String(50), nullable=False)
     state = Column(CHAR(2), ForeignKey('state.abbr'), nullable=False)
