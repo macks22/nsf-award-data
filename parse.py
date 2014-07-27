@@ -5,7 +5,6 @@ import zipfile
 from bs4 import BeautifulSoup
 
 
-
 class Awards(object):
 
     def __init__(self, dirpath=None):
@@ -57,20 +56,42 @@ def parse_year(awards, year):
         arra_amount = 0 if not arra_amount_str else int(arra_amount)
 
         # organization stuff
+
         # TODO: if anyone ever figures out what org code is for, parse it here
-        dirs = []
-        divs = []
-        orgs = soup('Organization')
-        for org in orgs:
-            dir_list = org('Directorate')
-            div_list = org('Division')
-            dir_names = [tag.find('LongName').text for tag in dir_list]
-            div_names = [tag.find('LongName').text for tag in div_list]
+
+        # NOTE: it would be necessary to parse directorate/division separately
+        # for each <Organization> tag, but the data was scanned and there were
+        # no instances of multiple <Organization>, <Directorate>, or <Division>
+        # tags found.
+
+        dir_name = soup.find('Directorate').find('LongName').text
+        div_name = soup.find('Division').find('LongName').text
+        # TODO: look up code and phone number for div/dir
+
+        #dir_names = [tag.find('LongName').text for tag in soup('Directorate')]
+        #div_names = [tag.find('LongName').text for tag in soup('Division')]
 
         pgms = [{'code': pgm.find('Code').text,
             'name': pgm.find('Text').text} for pgm in soup('ProgramElement')]
         related_pgms = [{'code': pgm.find('Code').text,
             'name': pgm.find('Text').text} for pgm in soup('ProgramReference')]
 
-        # institution
+        # institutions
+        institutions = []
+        inst_tags = soup.find('Institution')
+        for inst_tag in inst_tags:
+            address = {
+                'street': inst_tag.find('StreetAddress').text,  # parse unit
+                'city': inst_tag.find('CityName').text,  # lowercase
+                'state': inst_tag.find('StateCode').text,  # uppercase
+                'country': inst_tag.find('CountryName').text, # lookup alpha2
+                'zipcode': inst_tag.find('ZipCode').text
+            }
+            institution = {
+                'name': inst_tag.find('Name').text,
+                'phone': inst_tag.find('PhoneNumber').text,
+                'address': address
+            }
+            institutions.append(institution)
 
+        # investigators
