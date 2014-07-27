@@ -64,8 +64,10 @@ a `rootTag>`, followed by an `<Award>` tag which contains the following elements
     1.  **Code** (_int_): No one seems to know what this actually represents.
             Perhaps it can be a challenge for some daring historian/researcher to discover.
     2.  **Directorate** (_sequence_): Listing of directorates funding this award.
+        _Note_: no awards found with more than one <Directorate> tag.
         1.  **LongName** (_string_): Name of directorate.
     3.  **Division** (_sequence_): Listing of divisions funding this award.
+        _Note_: no awards found with more than one <Division> tag.
         1.  **LongName** (_string_): Name of division.
 
 12. **ProgramElement** (_sequence_): Listing of programs funding this award.
