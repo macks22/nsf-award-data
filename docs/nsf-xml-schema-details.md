@@ -91,7 +91,8 @@ a `rootTag>`, followed by an `<Award>` tag which contains the following elements
     4.  **StartDate** (_dateTime_): The date the investigator started working on this award.
     5.  **EndDate** (_dateTime_): The date the investigator stopped working on this award.
     6.  **RoleCode** (_string_): The role of the investigator, identified by a string.
-            Either "Principal Investigator" or "Co-Principal Investigator".
+            Either "Principal Investigator", "Former Principal Investigator", or
+            "Co-Principal Investigator".
             _Note_: This is in contrast to the xml schema, which states this code is an
             int.
 
