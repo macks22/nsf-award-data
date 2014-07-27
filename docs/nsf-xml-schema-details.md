@@ -74,28 +74,35 @@ a `rootTag>`, followed by an `<Award>` tag which contains the following elements
     1.  **Code** (_int_): Unique ID of the program funding.
     2.  **Text** (_string_): Name of the program funding.
 
-13. **ProgramReference** (_sequence_): Listing of programs intellectually related to the subject matter of this award.
+13. **ProgramReference** (_sequence_): Listing of programs intellectually related to the
+    subject matter of this award.
     1.  **Code** (_int_): Unique ID of the program referenced.
     2.  **Text** (_string_): Name of the program referenced.
 
-14. **ProgramOfficer** (_sequence_): A listing of all Program Officers responsible for this award.
+14. **ProgramOfficer** (_sequence_): A listing of all Program Officers responsible for
+    this award.
     1.  **SignBlockName** (_string_): The name of the Program Officer.
 
-15. **Investigator** (_sequence_): A listing of all investigators who have worked on or are working on this award.
+15. **Investigator** (_sequence_): A listing of all investigators who have worked on or
+    are working on this award.
     1.  **FirstName** (_string_): The first name of the investigator.
     2.  **LastName** (_string_): The last name of the investigator.
     3.  **EmailAddress** (_string_): The email address of the investigator (optional).
     4.  **StartDate** (_dateTime_): The date the investigator started working on this award.
     5.  **EndDate** (_dateTime_): The date the investigator stopped working on this award.
-    6.  **RoleCode** (_int_): The role of the investigator, identified by an integer code.
+    6.  **RoleCode** (_string_): The role of the investigator, identified by a string.
             Either "Principal Investigator" or "Co-Principal Investigator".
+            _Note_: This is in contrast to the xml schema, which states this code is an
+            int.
 
-16. **Institution** (_sequence_): The institution sponsoring this award (PO/Investigator affiliation).
+16. **Institution** (_sequence_): The institution sponsoring this award (PO/Investigator
+    affiliation).
     1.  **Name** (_string_): Name of the institution.
     2.  **PhoneNumber** (_decimal_): Phone number of the institution.
     3.  **CityName** (_string_): Name of the city where the institution is located.
-    4.  **StreetAddress** (_string_): Name of the street on which the institution is located.
-    5.  **StateCode** (_string_): The
+    4.  **StreetAddress** (_string_): Name of the street on which the
+        institution is located, including any unit numbers.
+    5.  **StateCode** (_string_): The two-letter state code.
     6.  **StateName** (_string_): Name of the state in which the institution is located.
     7.  **ZipCode** (_int_): Zip code of the institution's postal address.
     8.  **CountryName** (_string_): Name of the country in which the institution is located.
@@ -106,32 +113,37 @@ a `rootTag>`, followed by an `<Award>` tag which contains the following elements
 
 ## NSF Organization Hierarchy<a name="nsf-organization-hierarchy"></a>
 
-The NSF is organized into a hierarchy of sub-organizations. There are two top-level types of sub-organizations.
+The NSF is organized into a hierarchy of sub-organizations. There are two top-level types
+of sub-organizations.
 
 1.  Directorate: in charge of multiple divisions.
     1.  Division: in charge of multiple programs.
         1.  Program: each program has only one controlling division.
-2.  Office: can be organized into multiple subordinate offices and divisions, as well as multiple subordinate programs.
+2.  Office: can be organized into multiple subordinate offices and divisions, as well as
+    multiple subordinate programs.
     *   Each office/sub-office may have arbitrarily many sub-offices/divisions.
     *   Programs encompassed by offices are uniquely controlled by only one office.
-    *   Offices can be thought of like directories in a file system, where programs are files and sub-offices
-        are sub-directories.
-    *   Some offices are further divided into branches, but these are not tied to programs, so they are not
-        particularly interesting for a program-centric dataset.
+    *   Offices can be thought of like directories in a file system, where programs are
+        files and sub-offices are sub-directories.
+    *   Some offices are further divided into branches, but these are not tied to
+        programs, so they are not particularly interesting for a program-centric dataset.
 
 Unique identifiers:
 
 1.  Directorate/Division: both uniquely identified by a string abbreviation; see the
     [NSF orglist](http://www.nsf.gov/staff/orglist.jsp)
-3.  Program: uniquely identified by the program code, which is 4 characters, where characters can be digits or letters.
-    * programs were not assigned codes before **1975**, so data before then will be difficult to use
-    * note that the same program may be identified by a variety of different codes
+2.  Program: uniquely identified by the program code, which is 4 characters, where
+    characters can be digits or letters.
+    *   programs were not assigned codes before **1975**, so data before then will be
+        difficult to use
+    *   note that the same program may be identified by a variety of different codes
         - each uniquely identifies the program
         - different codes are generated by the same program if:
             1.  it moves from one division/office to another
             2.  it's purpose changes significantly
             3.  other miscellaneous reasons motivated by accounting needs cause it to
-4.  Institution: no fundamentally unique identifier; the address/name combo is probably the least ambiguous.
+3.  Institution: no fundamentally unique identifier; the address/name combo is probably
+    the least ambiguous.
 
 ## Terminology<a name="terminology"></a>
 
