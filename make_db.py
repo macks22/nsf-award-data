@@ -1,5 +1,7 @@
 import re
 import sys
+
+import nameparser
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship, backref
@@ -177,18 +179,42 @@ class Person(MixinHelper, Base):
     id = Column(Integer, primary_key=True)
     fname = Column(String(50), nullable=False)
     lname = Column(String(50), nullable=False)
-    middle_init = Column(CHAR(1))
+    mname = Column(String(50))
+    nickname = Column(String(20))
+    title = Column(String(10))
+    suffix = Column(String(10))
     email = Column(String(100), unique=True)
 
     publications = association_proxy('_publications', 'publication')
     institutions = association_proxy('affiliations', 'institution')
 
+    @classmethod
+    def from_fullname(self, name, email=None):
+        parsed_name = nameparser.HumanName(name)
+        return cls(
+            fname=parsed_name.first,
+            lname=parsed_name.last,
+            mname=parsed_name.middle if parsed_name.middle else None,
+            title=parsed_name.title if parsed_name.title else None,
+            suffix=parsed_name.suffix if parsed_name.suffix else None,
+            nickname=parsed_name.nickname if parsed_name.nickname else None,
+            email=email
+        )
+
     @property
     def full_name(self):
-        if self.middle_init is not None:
-            return '{} {}. {}'.format(self.fname, self.middle_init, self.lname)
-        else:
-            return '{} {}'.format(self.fname, self.lname)
+        pieces = []
+        if self.title is not None:
+            pieces.append(self.title)
+        pieces.append(self.fname)
+        if self.nickname is not None:
+            pieces.append('({})'.format(self.nickname))
+        if self.mname is not None:
+            pieces.append(self.mname)
+        pieces.append(self.lname)
+        if self.suffix is not None:
+            pieces.append(self.suffix)
+        return ' '.join(pieces)
 
 
 class Author(MixinHelper, Base):
@@ -224,7 +250,7 @@ class Role(MixinHelper, Base):
         Integer,
         ForeignKey('award.id', ondelete='CASCADE'),
         primary_key=True)
-    role = Column(Enum('pi', 'co-pi', 'po', 'co-po'))
+    role = Column(Enum('pi', 'copi', 'fpi', 'po'))
     start = Column(DATETIME)
     end = Column(DATETIME)
 

@@ -2,6 +2,7 @@ import os
 import sys
 import zipfile
 
+import nameparser
 from bs4 import BeautifulSoup
 
 
@@ -35,6 +36,23 @@ class Awards(object):
 
     def iterawards(self):
         return self.__iter__()
+
+
+def parse_name(name):
+    parsed_name = nameparser.HumanName(name)
+    mname = parsed_name.middle if parsed_name.middle else None
+    title = parsed_name.title if parsed_name.title else None
+    suffix = parsed_name.suffix if parsed_name.suffix else None
+    nickname = parsed_name.nickname if parsed_name.nickname else None
+    person = {
+        'fname': parsed_name.first,
+        'lname': parsed_name.last,
+        'mname': mname,
+        'title': title,
+        'suffix': suffix,
+        'nickname': nickname
+    }
+    return person
 
 
 def parse_year(awards, year):
@@ -104,18 +122,37 @@ def parse_year(awards, year):
         roles = []
         inv_tags = soup('Investigator')
         for inv_tag in inv_tags:
-            person = {
-                'fname': inv_tag.find('FirstName').text,
-                'lname': inv_tag.find('LastName').text,
+            name = '{} {}'.format(
+                inv_tag.find('FirstName').text,
+                inv_tag.find('LastName').text
+            )
+            person = parse_name(name)
+            person.update({
                 'email': inv_tag.find('EmailAddress').text
-            }  # MIDDLE INITIAL?
+            })
             people.append(person)
+
+            start_date = inv_tag.find('StartDate').text.strip()
+            start = start_date if start_date else award['effective']
+            end_date = inv_tag.find('EndDate').text.strip()
+            end = end_date if end_date else award['expires']
+
+            # TODO: deal with inexact matches
+            role_str = inv_tag.find('RoleCode').text.strip()
+            if role_str == 'Principal Investigator':
+                role = 'pi'
+            elif role_str == 'Co-Principal Investigator':
+                role = 'copi'
+            elif role_str == 'Former Principal Investigator':
+                role = 'fpi'
+
+            # TODO: use actual ids after creating entries in DB
             role = {
                 'person_id': person,
                 'award_id': award,
-                'role': inv_tag.find('RoleCode').text,
-                'start': inv_tag.find('StartDate').text,
-                'end': inv_tag.find('EndDate').text
+                'role': role,
+                'start': start,
+                'end': end
             }
             roles.append(role)
 
@@ -123,4 +160,15 @@ def parse_year(awards, year):
         po_tags = soup('ProgramOfficer')
         for po_tag in po_tags:
             name = po_tag.text.strip('\n')
+            person = parse_name(name)
+            people.append(person)
 
+            # TODO: use actual ids after creating entries in DB
+            role = {
+                'person_id': person,
+                'award_id': award,
+                'role': 'po',
+                'start': award['effective'],
+                'end': award['expires']
+            }
+            roles.append(role)
