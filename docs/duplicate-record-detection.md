@@ -82,6 +82,12 @@ https://mail.python.org/pipermail/python-list/2005-May/333531.html).
 
 ## Approach
 
+
+For a pure Python approach, the Jaro-Winkler algorithm should also work
+reasonably well. This is implemented in the [Jellyfish
+module](https://pypi.python.org/pypi/jellyfish/), which can be obtained via
+pypi. For an approach using Java, the following will do.
+
 Since all of the entities we need to perform duplicate record detection on are
 likely to be identified primarily by string attributes, string matching techniques
 shoudl be sufficient. [The algorithm most likely to work ideally for this problem
@@ -93,7 +99,8 @@ Using this library along with [JDBC for DB access](
 http://docs.oracle.com/javase/tutorial/jdbc/basics/processingsqlstatements.html)
 should be sufficient for our purposes.
 
-Below, the approach for each particular entity is laid out in more detail.
+Regardless of which algorithm is used, the general methodology will be the same;
+this is laid out for each entity below.
 
 ### Directorate
 
