@@ -2,9 +2,10 @@ import re
 import sys
 
 import nameparser
+import sqlalchemy as sa
+import sqlalchemy.orm as saorm
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.associationproxy import association_proxy
-from sqlalchemy.orm import relationship, backref
 from sqlalchemy import (
     Column, String, Text, Integer, Enum,
     DATETIME, CHAR, FLOAT,
@@ -12,6 +13,8 @@ from sqlalchemy import (
 )
 
 
+engine = sa.create_engine('sqlite:///nsf-award-data.db')
+Session = saorm.sessionmaker(bind=engine)
 Base = declarative_base()
 
 
@@ -23,11 +26,18 @@ class MixinHelper(object):
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', cls.__name__)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
-    @declared_attr
-    def __repr__(cls):
-        attributes = ['{}="{}"'.format(attr, getattr(self, attr))
-                      for attr in dir(cls) if isinstance(attr, Column)]
-        return '<{} ({})>'.format(cls.__name__, ', '.join(attributes))
+    def __repr__(self):
+        def reprs():
+            for col in self.__table__.c:
+                yield col.name, repr(getattr(self, col.name))
+
+        def format(seq):
+            for key, value in seq:
+                yield '%s=%s' % (key, value)
+
+        args = '(%s)' % ', '.join(format(reprs()))
+        classy = type(self).__name__
+        return classy + args
 
 
 class Directorate(MixinHelper, Base):
@@ -35,7 +45,7 @@ class Directorate(MixinHelper, Base):
     code = Column(CHAR(4), unique=True)
     name = Column(String(80), nullable=False)
     phone = Column(String(15), unique=True)
-    divisions = relationship(
+    divisions = saorm.relationship(
         'Division', backref='directorate',
         cascade='all, delete-orphan', passive_deletes=True)
 
@@ -46,7 +56,7 @@ class Division(MixinHelper, Base):
     name = Column(String(80), nullable=False)
     phone = Column(String(15), unique=True)
     dir_id = Column(Integer, ForeignKey('directorate.id', ondelete='CASCADE'))
-    programs = relationship(
+    programs = saorm.relationship(
         'Program', backref='division',
         cascade='all, delete-orphan', passive_deletes=True)
 
@@ -62,22 +72,21 @@ class Program(MixinHelper, Base):
 
 class RelatedPrograms(MixinHelper, Base):
     pgm1_id = Column(
-        Integer,
-        ForeignKey('program.id', ondelete='CASCADE'),
+        Integer, ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
     pgm2_id = Column(
-        Integer,
-        ForeignKey('program.id', ondelete='CASCADE'),
+        Integer, ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
 
-    main_program = relationship(
+    main_program = saorm.relationship(
         'Program', foreign_keys='RelatedPrograms.pgm1_id',
         uselist=False, single_parent=True,
-        backref=backref('_related_programs', cascade='all, delete-orphan',
-                        passive_deletes=True)
+        backref=saorm.backref(
+            '_related_programs', cascade='all, delete-orphan',
+            passive_deletes=True)
     )
 
-    secondary_program = relationship(
+    secondary_program = saorm.relationship(
         'Program', foreign_keys='RelatedPrograms.pgm2_id',
         uselist=False, single_parent=True)
 
@@ -102,8 +111,8 @@ class Award(MixinHelper, Base):
     arra_amount = Column(Integer)
     instrument = Column(String(100))
 
-    publications = relationship(
-        'Publication', backref=backref('award', uselist=False))
+    publications = saorm.relationship(
+        'Publication', backref=saorm.backref('award', uselist=False))
     institutions = association_proxy('affiliations', 'institution')
     people = association_proxy('affiliations', 'person')
     funding_programs = association_proxy('_funding_programs', 'program')
@@ -111,20 +120,18 @@ class Award(MixinHelper, Base):
 
 class Funding(MixinHelper, Base):
     pgm_id = Column(
-        Integer,
-        ForeignKey('program.id', ondelete='CASCADE'),
+        Integer, ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
     award_id = Column(
-        Integer,
-        ForeignKey('award.id', ondelete='CASCADE'),
+        Integer, ForeignKey('award.id', ondelete='CASCADE'),
         primary_key=True)
 
-    program = relationship('Program', uselist=False, single_parent=True)
-    award = relationship(
+    program = saorm.relationship('Program', uselist=False, single_parent=True)
+    award = saorm.relationship(
         'Award', uselist=False, single_parent=True,
-        backref=backref('_funding_programs',
-                        cascade='all, delete-orphan',
-                        passive_deletes=True)
+        backref=saorm.backref(
+            '_funding_programs', cascade='all, delete-orphan',
+            passive_deletes=True)
     )
 
     def __init__(self, pgm_id, award_id):
@@ -170,7 +177,7 @@ class Institution(MixinHelper, Base):
     name = Column(String(100), nullable=False)
     phone = Column(String(15), unique=True)
     address_id = Column(Integer, ForeignKey('address.id', ondelete='SET NULL'))
-    address = relationship('Address', uselist=False)
+    address = saorm.relationship('Address', uselist=False)
 
     people = association_proxy('_people', 'person')
 
@@ -219,21 +226,19 @@ class Person(MixinHelper, Base):
 
 class Author(MixinHelper, Base):
     person_id = Column(
-        Integer,
-        ForeignKey('person.id', ondelete='CASCADE'),
+        Integer, ForeignKey('person.id', ondelete='CASCADE'),
         primary_key=True)
     pub_id = Column(
-        Integer,
-        ForeignKey('publication.id', ondelete='CASCADE'),
+        Integer, ForeignKey('publication.id', ondelete='CASCADE'),
         primary_key=True)
 
-    person = relationship(
+    person = saorm.relationship(
         'Person', uselist=False, single_parent=True,
-        backref=backref('_publications', cascade='all, delete-orphan',
-                        passive_deletes=True)
+        backref=saorm.backref(
+            '_publications', cascade='all,delete-orphan', passive_deletes=True)
     )
 
-    publication = relationship(
+    publication = saorm.relationship(
         'Publication', uselist=False, single_parent=True)
 
     def __init__(self, person_id, pub_id):
@@ -243,53 +248,50 @@ class Author(MixinHelper, Base):
 
 class Role(MixinHelper, Base):
     person_id = Column(
-        Integer,
-        ForeignKey('person.id', ondelete='CASCADE'),
+        Integer, ForeignKey('person.id', ondelete='CASCADE'),
         primary_key=True)
     award_id = Column(
-        Integer,
-        ForeignKey('award.id', ondelete='CASCADE'),
+        Integer, ForeignKey('award.id', ondelete='CASCADE'),
         primary_key=True)
     role = Column(Enum('pi', 'copi', 'fpi', 'po'))
     start = Column(DATETIME)
     end = Column(DATETIME)
 
-    award = relationship('Award', uselist=False, single_parent=True)
-    person = relationship(
+    award = saorm.relationship('Award', uselist=False, single_parent=True)
+    person = saorm.relationship(
         'Person', uselist=False, single_parent=True,
-        backref=backref('awards', cascade='all, delete-orphan',
-                        passive_deletes=True)
+        backref=saorm.backref(
+            'awards', cascade='all, delete-orphan', passive_deletes=True)
     )
 
 
 class Affiliation(MixinHelper, Base):
     person_id = Column(
-        Integer,
-        ForeignKey('person.id', ondelete='CASCADE'),
+        Integer, ForeignKey('person.id', ondelete='CASCADE'),
         primary_key=True)
     institution_id = Column(
-        Integer,
-        ForeignKey('institution.id', ondelete='CASCADE'),
+        Integer, ForeignKey('institution.id', ondelete='CASCADE'),
         primary_key=True)
     award_id = Column(
-        Integer,
-        ForeignKey('award.id', ondelete='CASCADE'),
+        Integer, ForeignKey('award.id', ondelete='CASCADE'),
         primary_key=True)
 
-    person = relationship(
-        'Person', backref=backref('affiliations', cascade='all, delete-orphan',
-                                  passive_deletes=True)
+    person = saorm.relationship(
+        'Person',
+        backref=saorm.backref(
+            'affiliations', cascade='all, delete-orphan', passive_deletes=True)
     )
 
-    institution = relationship(
-        'Institution', backref=backref('affiliations',
-                                       cascade='all, delete-orphan',
-                                       passive_deletes=True)
+    institution = saorm.relationship(
+        'Institution',
+        backref=saorm.backref(
+            'affiliations', cascade='all, delete-orphan', passive_deletes=True)
     )
 
-    award = relationship(
-        'Award', backref=backref('affiliations', cascade='all, delete-orphan',
-                                 passive_deletes=True)
+    award = saorm.relationship(
+        'Award',
+        backref=saorm.backref(
+            'affiliations', cascade='all, delete-orphan', passive_deletes=True)
     )
 
     def __init__(self, person_id, institution_id, award_id):
@@ -299,8 +301,6 @@ class Affiliation(MixinHelper, Base):
 
 
 def main():
-    from sqlalchemy import create_engine
-    engine = create_engine('sqlite:///nsf-award-data.db')
     Base.metadata.create_all(engine)
     return 0
 
