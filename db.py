@@ -6,6 +6,7 @@ import sqlalchemy as sa
 import sqlalchemy.orm as saorm
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import (
     Column, String, Text, Integer, Enum, Date,
     CHAR, FLOAT,
@@ -14,7 +15,8 @@ from sqlalchemy import (
 
 
 engine = sa.create_engine('sqlite:///nsf-award-data.db')
-Session = saorm.sessionmaker(bind=engine)
+session_factory = saorm.sessionmaker(bind=engine)
+Session = saorm.scoped_session(session_factory)
 Base = declarative_base()
 
 
@@ -33,9 +35,9 @@ class MixinHelper(object):
 
         def format(seq):
             for key, value in seq:
-                yield '%s=%s' % (key, value)
+                yield '{}="{}"'.format(key, value)
 
-        args = '(%s)' % ', '.join(format(reprs()))
+        args = '({})'.format(', '.join(format(reprs())))
         classy = type(self).__name__
         return classy + args
 
@@ -94,7 +96,7 @@ class RelatedPrograms(MixinHelper, Base):
         Integer, ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
 
-    main_program = saorm.relationship(
+    primary = saorm.relationship(
         'Program', foreign_keys='RelatedPrograms.pgm1_id',
         uselist=False, single_parent=True,
         backref=saorm.backref(
@@ -102,7 +104,7 @@ class RelatedPrograms(MixinHelper, Base):
             passive_deletes=True)
     )
 
-    secondary_program = saorm.relationship(
+    secondary = saorm.relationship(
         'Program', foreign_keys='RelatedPrograms.pgm2_id',
         uselist=False, single_parent=True)
 
@@ -110,9 +112,9 @@ class RelatedPrograms(MixinHelper, Base):
         CheckConstraint(pgm1_id != pgm2_id),
     )
 
-    def __init__(self, pgm1_id, pgm2_id):
-        self.pgm1_id = pgm1_id
-        self.pgm2_id = pgm2_id
+    def __init__(self, primary_id, secondary_id):
+        self.pgm1_id = primary_id
+        self.pgm2_id = secondary_id
 
 
 class Award(MixinHelper, Base):
@@ -152,9 +154,10 @@ class Funding(MixinHelper, Base):
             passive_deletes=True)
     )
 
-    def __init__(self, pgm_id, award_id):
-        self.pgm_id = pgm_id
-        self.award_id = award_id
+    def __init__(self, program, award):
+        self.program = program
+        self.award = award
+
 
 
 class Publication(MixinHelper, Base):
@@ -227,7 +230,7 @@ class Person(MixinHelper, Base):
             email=email
         )
 
-    @property
+    @hybrid_property
     def full_name(self):
         pieces = []
         if self.title is not None:

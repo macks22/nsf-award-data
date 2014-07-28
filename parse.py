@@ -74,13 +74,13 @@ def parse_date(date):
 
 
 def parse_year(awards, year):
-    for soup in awards[year]:
-        parse_award(soup)
-
-
-def parse_award(soup):
     session = db.Session()
+    for soup in awards[year]:
+        parse_award(soup, session)
+    session.commit()
 
+
+def parse_award(soup, session):
     arra_amount_str = soup.find('ARRAAmount').text.strip()
     abstract = soup.find('AbstractNarration').text.strip()
     award = db.Award(
@@ -102,7 +102,7 @@ def parse_award(soup):
         arra_amount=int(arra_amount_str) if arra_amount_str else 0
     )
     session.add(award)
-    session.commit()
+    session.flush()
 
     # organization stuff
 
@@ -124,23 +124,23 @@ def parse_award(soup):
         db.Program(pgm.find('Code').text, pgm.find('Text').text)
         for pgm in soup('ProgramReference')]
     map(session.add, related_pgms)
-    session.commit()
+    session.flush()
 
     for pgm in soup('ProgramElement'):
         pgm = db.Program(pgm.find('Code').text, pgm.find('Text').text)
-        session.add(pgm)
-        session.commit()  # to get id
-
         division.programs.append(pgm)
+        session.flush()
+
         for related_pgm in related_pgms:
             pgm.related_programs.append(
-                db.RelatedPrograms(pgm.id, related_pgm.id)
+                db.RelatedPrograms(pgm.id,
+                related_pgm.id)
             )
 
-        award.funding_programs.append(db.Funding(pgm.id, award.id))
+        session.add(db.Funding(pgm, award))
 
     session.add(directorate)
-    session.commit()
+    session.flush()
 
     # institutions
     institutions = []
@@ -159,11 +159,10 @@ def parse_award(soup):
         session.add(institution)
         institutions.append(institution)
 
-    session.commit()
+    session.flush()
 
     # investigators
     people = []
-    roles = []
     for inv_tag in soup('Investigator'):
         email = inv_tag.find('EmailAddress').text.strip()
         person = db.Person.from_fullname(
@@ -194,29 +193,27 @@ def parse_award(soup):
             db.Role(award_id=award.id, role=role, start=start, end=end)
         )
 
-    session.commit()
+    session.flush()
 
     # program officers
-    po_tags = soup('ProgramOfficer')
-    for po_tag in po_tags:
+    for po_tag in soup('ProgramOfficer'):
         name = po_tag.text.strip('\n')
         person = db.Person.from_fullname(name)
         session.add(person)
         people.append(person)
 
-        # TODO: use actual ids after creating entries in DB
         person.roles.append(
             db.Role(award_id=award.id, role='po', start=award.effective,
                     end=award.expires)
         )
 
-    session.commit()
+    session.flush()
 
     for person in people:
         for institution in institutions:
             session.add(db.Affiliation(person.id, institution.id, award.id))
 
-    session.commit()
+    session.flush()
     return session
 
 
@@ -229,4 +226,11 @@ if __name__ == "__main__":
 
     g = awards.iterawards()
     soup = g.next()
-    session = parse_award(soup)
+    session = db.Session()
+    parse_award(soup, session)
+
+    try:
+        session.commit()
+    except:
+        session.rollback()
+        print 'ROLLBACK'
