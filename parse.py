@@ -8,10 +8,10 @@ import nameparser
 from bs4 import BeautifulSoup
 
 
-with open('address-abbrevs.pickle', 'r') as f:
+with open('data/address-abbrevs.pickle', 'r') as f:
     SUBS = pickle.load(f)
 
-with open('country-codes.pickle', 'r') as f:
+with open('data/country-codes.pickle', 'r') as f:
     COUNTRIES = pickle.load(f)
 
 
