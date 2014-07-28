@@ -57,7 +57,7 @@ class Program(MixinHelper, Base):
     name = Column(String(80))
     div_id = Column(CHAR(4), ForeignKey('division.id', ondelete='CASCADE'))
     related_programs = association_proxy(
-        '_related_programs', 'secondary_programs')
+        '_related_programs', 'secondary_program')
 
 
 class RelatedPrograms(MixinHelper, Base):
@@ -72,13 +72,14 @@ class RelatedPrograms(MixinHelper, Base):
 
     main_program = relationship(
         'Program', foreign_keys='RelatedPrograms.pgm1_id',
+        uselist=False, single_parent=True,
         backref=backref('_related_programs', cascade='all, delete-orphan',
                         passive_deletes=True)
     )
 
-    secondary_programs = relationship(
+    secondary_program = relationship(
         'Program', foreign_keys='RelatedPrograms.pgm2_id',
-        cascade='all, delete-orphan', passive_deletes=True)
+        uselist=False, single_parent=True)
 
     __table_args__ = (
         CheckConstraint(pgm1_id != pgm2_id),
@@ -118,14 +119,13 @@ class Funding(MixinHelper, Base):
         ForeignKey('award.id', ondelete='CASCADE'),
         primary_key=True)
 
+    program = relationship('Program', uselist=False, single_parent=True)
     award = relationship(
-        'Award', backref=backref('_funding_programs',
-                                 cascade='all, delete-orphan',
-                                 passive_deletes=True)
+        'Award', uselist=False, single_parent=True,
+        backref=backref('_funding_programs',
+                        cascade='all, delete-orphan',
+                        passive_deletes=True)
     )
-
-    program = relationship(
-        'Program', cascade='all, delete-orphan', passive_deletes=True)
 
     def __init__(self, pgm_id, award_id):
         self.pgm_id = pgm_id
@@ -150,7 +150,7 @@ class State(MixinHelper, Base):
 
 
 class Country(MixinHelper, Base):
-    alpha2 = Column(CHAR(2), nullable=False, unique=True)
+    alpha2 = Column(CHAR(2), primary_key=True)
     name = Column(String(100), nullable=False)
 
 
@@ -228,13 +228,13 @@ class Author(MixinHelper, Base):
         primary_key=True)
 
     person = relationship(
-        'Person', backref=backref('_publications',
-                                  cascade='all, delete-orphan',
-                                  passive_deletes=True)
+        'Person', uselist=False, single_parent=True,
+        backref=backref('_publications', cascade='all, delete-orphan',
+                        passive_deletes=True)
     )
 
     publication = relationship(
-        'Publication', cascade='all, delete-orphan', passive_deletes=True)
+        'Publication', uselist=False, single_parent=True)
 
     def __init__(self, person_id, pub_id):
         self.person_id = person_id
@@ -254,13 +254,12 @@ class Role(MixinHelper, Base):
     start = Column(DATETIME)
     end = Column(DATETIME)
 
+    award = relationship('Award', uselist=False, single_parent=True)
     person = relationship(
-        'Person', backref=backref('awards', cascade='all, delete-orphan',
-                                  passive_deletes=True)
+        'Person', uselist=False, single_parent=True,
+        backref=backref('awards', cascade='all, delete-orphan',
+                        passive_deletes=True)
     )
-
-    award = relationship(
-        'Award', cascade='all, delete-orphan', passive_deletes=True)
 
 
 class Affiliation(MixinHelper, Base):
