@@ -4,6 +4,7 @@ import sys
 import nameparser
 import sqlalchemy as sa
 import sqlalchemy.orm as saorm
+from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -82,6 +83,12 @@ class Program(MixinHelper, Base):
     name = Column(String(80))
     div_id = Column(CHAR(4), ForeignKey('division.id', ondelete='CASCADE'))
 
+    related_programs = association_proxy(
+        '_related_programs', 'secondary',
+        creator=lambda code, name: RelatedPrograms(
+            secondary=Program(code, name))
+    )
+
     def __init__(self, code, name=None, div_id=None):
         self.code = code
         self.name = name
@@ -100,7 +107,8 @@ class RelatedPrograms(MixinHelper, Base):
         'Program', foreign_keys='RelatedPrograms.pgm1_id',
         uselist=False, single_parent=True,
         backref=saorm.backref(
-            'related_programs', cascade='all, delete-orphan',
+            '_related_programs', cascade='all, delete-orphan',
+            collection_class=attribute_mapped_collection('secondary'),
             passive_deletes=True)
     )
 
@@ -111,10 +119,6 @@ class RelatedPrograms(MixinHelper, Base):
     __table_args__ = (
         CheckConstraint(pgm1_id != pgm2_id),
     )
-
-    def __init__(self, primary_id, secondary_id):
-        self.pgm1_id = primary_id
-        self.pgm2_id = secondary_id
 
 
 class Award(MixinHelper, Base):

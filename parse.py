@@ -120,22 +120,15 @@ def parse_award(soup, session):
     directorate.divisions.append(division)
     # TODO: look up code and phone number for div/dir
 
-    related_pgms = [
-        db.Program(pgm.find('Code').text, pgm.find('Text').text)
-        for pgm in soup('ProgramReference')]
-    map(session.add, related_pgms)
-    session.flush()
-
     for pgm in soup('ProgramElement'):
         pgm = db.Program(pgm.find('Code').text, pgm.find('Text').text)
         division.programs.append(pgm)
         session.flush()
 
-        for related_pgm in related_pgms:
-            pgm.related_programs.append(
-                db.RelatedPrograms(pgm.id,
-                related_pgm.id)
-            )
+        for pgm_tag in soup('ProgramReference'):
+            code = pgm_tag.find('Code').text
+            name = pgm_tag.find('Text').text
+            pgm.related_programs[code] = name
 
         session.add(db.Funding(pgm, award))
 
