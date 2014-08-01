@@ -2,7 +2,7 @@ import sys
 import multiprocessing as mp
 
 from parse import Awards
-from num_cpus import available_cpu_count
+from util.num_cpus import available_cpu_count
 
 
 def check_orgs(awards, year):
