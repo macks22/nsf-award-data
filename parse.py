@@ -18,6 +18,29 @@ with open('data/country-codes.pickle', 'r') as f:
     COUNTRIES = pickle.load(f)
 
 
+def normalize_street(street_address):
+    caps = street_address.upper()
+    stripped = caps.strip('.').strip()
+    for key in SUBS:
+        stripped = stripped.replace(key, SUBS[key])
+    return stripped
+
+
+def closest_country_code(country):
+    caps = country.upper()
+    top = (0, '')
+    for name in COUNTRIES:
+        similarity = SequenceMatcher(None, caps, name).ratio()
+        if similarity > top[0]:
+            top = (similarity, name)
+    return COUNTRIES[top[1]]
+
+
+def parse_date(date):
+    month, day, year = [int(part) for part in date.split('/')]
+    return datetime.date(year, month, day)
+
+
 class Awards(object):
 
     def __init__(self, dirpath=None):
@@ -48,29 +71,6 @@ class Awards(object):
 
     def iterawards(self):
         return self.__iter__()
-
-
-def normalize_street(street_address):
-    caps = street_address.upper()
-    stripped = caps.strip('.').strip()
-    for key in SUBS:
-        stripped = stripped.replace(key, SUBS[key])
-    return stripped
-
-
-def closest_country_code(country):
-    caps = country.upper()
-    top = (0, '')
-    for name in COUNTRIES:
-        similarity = SequenceMatcher(None, caps, name).ratio()
-        if similarity > top[0]:
-            top = (similarity, name)
-    return COUNTRIES[top[1]]
-
-
-def parse_date(date):
-    month, day, year = [int(part) for part in date.split('/')]
-    return datetime.date(year, month, day)
 
 
 def parse_year(awards, year):

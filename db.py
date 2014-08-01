@@ -225,12 +225,12 @@ class Person(MixinHelper, Base):
     def from_fullname(cls, name, email=None):
         parsed_name = nameparser.HumanName(name)
         return cls(
-            fname=parsed_name.first,
-            lname=parsed_name.last,
-            mname=parsed_name.middle if parsed_name.middle else None,
-            title=parsed_name.title if parsed_name.title else None,
-            suffix=parsed_name.suffix if parsed_name.suffix else None,
-            nickname=parsed_name.nickname if parsed_name.nickname else None,
+            fname=parsed_name.first.strip('.'),
+            lname=parsed_name.last.strip('.'),
+            mname=parsed_name.middle.strip('.'),
+            title=parsed_name.title.strip('.'),
+            suffix=parsed_name.suffix.strip('.'),
+            nickname=parsed_name.nickname.strip('.'),
             email=email
         )
 
