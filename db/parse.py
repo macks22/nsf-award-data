@@ -1,79 +1,14 @@
 import os
 import sys
-import pickle
-import zipfile
-import datetime
-from difflib import SequenceMatcher
 
 import nameparser
-from bs4 import BeautifulSoup
 
 import db
-
-
-with open('data/address-abbrevs.pickle', 'r') as f:
-    SUBS = pickle.load(f)
-
-with open('data/country-codes.pickle', 'r') as f:
-    COUNTRIES = pickle.load(f)
-
-
-def normalize_street(street_address):
-    caps = street_address.upper()
-    stripped = caps.strip('.').strip()
-    for key in SUBS:
-        stripped = stripped.replace(key, SUBS[key])
-    return stripped
-
-
-def closest_country_code(country):
-    caps = country.upper()
-    top = (0, '')
-    for name in COUNTRIES:
-        similarity = SequenceMatcher(None, caps, name).ratio()
-        if similarity > top[0]:
-            top = (similarity, name)
-    return COUNTRIES[top[1]]
-
-
-def parse_date(date):
-    month, day, year = [int(part) for part in date.split('/')]
-    return datetime.date(year, month, day)
-
-
-class Awards(object):
-
-    def __init__(self, dirpath=None):
-        self.zipdir = dirpath if dirpath is not None else os.getcwd()
-        self.zipfiles = [f for f in os.listdir(self.zipdir) if
-                f.endswith('.zip')]
-
-    def __getitem__(self, year):
-        filename = '{}.zip'.format(year)
-        if filename not in self.zipfiles:
-            raise KeyError('{} not present in {}'.format(
-                filename, self.zipdir))
-
-        zipfile_path = os.path.join(self.zipdir, filename)
-        with zipfile.ZipFile(zipfile_path, 'r') as archive:
-            for filepath in archive.filelist:
-                yield BeautifulSoup(archive.read(filepath), 'xml')
-
-    def __iter__(self):
-        for filename in self.zipfiles:
-            zipfile_path = os.path.join(self.zipdir, filename)
-            with zipfile.ZipFile(zipfile_path, 'r') as archive:
-                for filepath in archive.filelist:
-                    yield BeautifulSoup(archive.read(filepath), 'xml')
-
-    def years(self):
-        return [int(year.strip('.zip')) for year in self.zipfiles]
-
-    def iterawards(self):
-        return self.__iter__()
+from awards import AwardExplorer
 
 
 def parse_year(awards, year):
+    """Parse all XML award records for a given year, creating DB records."""
     session = db.Session()
     for soup in awards[year]:
         parse_award(soup, session)
@@ -81,6 +16,14 @@ def parse_year(awards, year):
 
 
 def parse_award(soup, session):
+    """Parse a single XML file and create all relevant records in DB.
+
+    :type  soup: `bs4.BeautifulSoup`
+    :param soup: Soup instance wrapping the XML file to parse.
+    :type  session: `sqlalchemy.Session`
+    :param session: The active session object for the DB.
+
+    """
     arra_amount_str = soup.find('ARRAAmount').text.strip()
     abstract = soup.find('AbstractNarration').text.strip()
     award = db.Award(
@@ -174,12 +117,7 @@ def parse_award(soup, session):
 
         # TODO: deal with inexact matches
         role_str = inv_tag.find('RoleCode').text.strip()
-        if role_str == 'Principal Investigator':
-            role = 'pi'
-        elif role_str == 'Co-Principal Investigator':
-            role = 'copi'
-        elif role_str == 'Former Principal Investigator':
-            role = 'fpi'
+        role = ROLES[role_str.lower()]
 
         # TODO: use actual ids after creating entries in DB
         person.roles.append(
@@ -212,9 +150,9 @@ def parse_award(soup, session):
 
 if __name__ == "__main__":
     try:
-        awards = Awards(sys.argv[1])
+        awards = AwardExplorer(sys.argv[1])
     except IndexError:
-        print '{} <zipdir'.format(sys.argv[0])
+        print '{} <zipdir>'.format(sys.argv[0])
         sys.exit(1)
 
     g = awards.iterawards()
