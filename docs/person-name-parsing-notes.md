@@ -5,6 +5,8 @@ it appears someone has already gone through all the trouble:
 
 [python-nameparser](https://pypi.python.org/pypi/nameparser)
 
+The notes below were produced during the initial effort.
+
 ## Program Officer
 
 Names may either be empty or non-empty.
@@ -76,4 +78,3 @@ Names may either be empty or non-empty.
     *   Creekmore III
 3.  last name with space
     *   La Rosa
-

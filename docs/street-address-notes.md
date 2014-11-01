@@ -52,4 +52,3 @@ Others
 Other common address abbreviations are addressed by converting via the data at:
 
 http://www.semaphorecorp.com/cgi/abbrev.html
-

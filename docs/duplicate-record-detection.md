@@ -1,14 +1,15 @@
 ## Idea
 
-_Duplicate record detection_, or _record linkage_, is the problem of detecting records in one or
-more databases that refer to the same real-world entity. Duplicate records are often a result of
-inconsistencies in the cataloging of data, particularly string data. This is also referred to as
-_disambiguation_ elsewhere in the DB documentation.
+_Duplicate record detection_, or _record linkage_, is the problem of detecting
+records in one or more databases that refer to the same real-world entity.
+Duplicate records are often a result of inconsistencies in the cataloging of
+data, particularly string data. This is also referred to as _disambiguation_
+elsewhere in the DB documentation.
 
 ## Applicability
 
-For the purposes of the NSF award data, the entities which require duplicate record
-detection are:
+For the purposes of the NSF award data, the entities which require duplicate
+record detection are:
 
 1.  Directorate
 2.  Division
@@ -61,17 +62,17 @@ They are categorized as either:
 3.  Oxford Name Compression Algorithm (ONCA)
 4.  Metaphone and Double Metaphone
 
-
 ### Comparison of String Matching Methods
 
-"Yancey shows that the Jaro-Winkler metric works well for name matching tasks for data
-coming from the US census. A notable comparison effort is the work of Bilenko et al.,
-who compare the effectiveness of character-based and token-based similarity metrics.
-They show that the Monge-Elkan metric has the highest average performance across data
-sets and across character-based distance metrics. They also show that the SoftTF.IDF
-metric works better than any other metric. However, Bilenko et al. emphasize that no
-single metric is suitable for all data sets. Even metrics that demonstrate robust and
-high performance for some data sets can perform poorly on others."
+> Yancey shows that the Jaro-Winkler metric works well for name matching tasks
+> for data coming from the US census. A notable comparison effort is the work of
+> Bilenko et al., who compare the effectiveness of character-based and
+> token-based similarity metrics.  They show that the Monge-Elkan metric has the
+> highest average performance across data sets and across character-based
+> distance metrics. They also show that the SoftTF.IDF metric works better than
+> any other metric. However, Bilenko et al. emphasize that no single metric is
+> suitable for all data sets. Even metrics that demonstrate robust and high
+> performance for some data sets can perform poorly on others.
 
 1.  Monge-Elkan (atomic strings)
 2.  SoftTF.IDF
@@ -82,22 +83,22 @@ https://mail.python.org/pipermail/python-list/2005-May/333531.html).
 
 ## Approach
 
-
 For a pure Python approach, the Jaro-Winkler algorithm should also work
 reasonably well. This is implemented in the [Jellyfish
 module](https://pypi.python.org/pypi/jellyfish/), which can be obtained via
 pypi. For an approach using Java, the following will do.
 
 Since all of the entities we need to perform duplicate record detection on are
-likely to be identified primarily by string attributes, string matching techniques
-shoudl be sufficient. [The algorithm most likely to work ideally for this problem
-is SoftTF.IDF](https://www.cs.cmu.edu/~pradeepr/papers/ijcai03.pdf). There is an
+likely to be identified primarily by string attributes, string matching
+techniques shoudl be sufficient. [The algorithm most likely to work ideally for
+this problem is
+SoftTF.IDF](https://www.cs.cmu.edu/~pradeepr/papers/ijcai03.pdf). There is an
 implementation of this algorithm and just about every other string matching
 algorithm you might ever want in the [SecondString Java library](
 http://secondstring.sourceforge.net/javadoc/com/wcohen/secondstring/SoftTFIDF.html).
 Using this library along with [JDBC for DB access](
 http://docs.oracle.com/javase/tutorial/jdbc/basics/processingsqlstatements.html)
-should be sufficient for our purposes.
+is also a reasonable approach for our purposes.
 
 Regardless of which algorithm is used, the general methodology will be the same;
 this is laid out for each entity below.
