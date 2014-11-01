@@ -117,8 +117,8 @@ class AwardXML(object):
             role_str = get_text('RoleCode').strip()
             role = ROLES[role_str.lower()]
             self.people.append({
-                'email': email,
-                'fullname': fullname,
+                'email': email if email else None,
+                'name': fullname,
                 'role': role,
                 'start': start,
                 'end': end
@@ -130,7 +130,8 @@ class AwardXML(object):
                 'name': tag.text.strip('\n'),
                 'role': 'po',
                 'start': self.effective,
-                'end': self.expires
+                'end': self.expires,
+                'email': None
             })
 
 
@@ -156,6 +157,11 @@ class AwardExplorer(object):
         if not self.zipfiles:
             raise NoAwardsFound(self.zipdir)
 
+    def _iterarchive(self, zipfile_path):
+        with zipfile.ZipFile(zipfile_path, 'r') as archive:
+            for filepath in archive.filelist:
+                yield Soup(archive.read(filepath), 'xml')
+
     def __getitem__(self, year):
         filename = '{}.zip'.format(year)
         if filename not in self.zipfiles:
@@ -163,26 +169,24 @@ class AwardExplorer(object):
                 filename, self.zipdir))
 
         zipfile_path = os.path.join(self.zipdir, filename)
-        with zipfile.ZipFile(zipfile_path, 'r') as archive:
-            for filepath in archive.filelist:
-                yield Soup(archive.read(filepath), 'xml')
+        return (AwardXML(soup) for soup in self._iterarchive(zipfile_path))
 
     def __iter__(self):
-        for filename in self.zipfiles:
-            zipfile_path = os.path.join(self.zipdir, filename)
-            with zipfile.ZipFile(zipfile_path, 'r') as archive:
-                for filepath in archive.filelist:
-                    yield Soup(archive.read(filepath), 'xml')
+        return self.iterawards()
 
     def years(self):
         return [int(year.strip('.zip')) for year in self.zipfiles]
 
+    def itersoup(self):
+        for filename in self.zipfiles:
+            zipfile_path = os.path.join(self.zipdir, filename)
+            return self._iterarchive(zipfile_path)
+
     def iterawards(self):
-        return (AwardXML(soup) for soup in self.__iter__())
+        return (AwardXML(soup) for soup in self.itersoup())
 
 
 if __name__ == "__main__":
     expl = AwardExplorer('../raw')
     g = iter(expl)
     awd = next(g)
-    wrap = AwardXML(awd)

@@ -13,17 +13,27 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy import (
     Column, String, Text, Integer, Enum, Date,
     CHAR, FLOAT,
-    ForeignKey, CheckConstraint
+    ForeignKey, CheckConstraint, UniqueConstraint
 )
 
 
-engine = sa.create_engine('sqlite:///nsf-award-data.db')
+engine = sa.create_engine('sqlite:///nsf-award-data.db', echo=True)
 session_factory = saorm.sessionmaker(bind=engine)
 Session = saorm.scoped_session(session_factory)
 Base = declarative_base()
 
 
-class MixinHelper(object):
+def get_or_create(session, model, **kwargs):
+    instance = session.query(model).filter_by(**kwargs).first()
+    if instance:
+        return instance
+    else:
+        instance = model(**kwargs)
+        session.add(instance)
+        return instance
+
+
+class BasicMixin(object):
 
     @declared_attr
     def __tablename__(cls):
@@ -45,7 +55,48 @@ class MixinHelper(object):
         return classy + args
 
 
-class Directorate(MixinHelper, Base):
+def _unique(session, cls, hashfunc, queryfunc, constructor, arg, kw):
+    """Provide the "guts" to the unique recipe. This function is given a
+    Session to work with, and associates a dictionary with the Session() which
+    keeps track of current "unique" keys.
+    """
+    cache = getattr(session, '_unique_cache', None)
+    if cache is None:
+        session._unique_cache = cache = {}
+
+    key = (cls, hashfunc(*arg, **kw))
+    if key in cache:
+        return cache[key]
+    else:
+        with session.no_autoflush:
+            q = session.query(cls)
+            q = queryfunc(q, *arg, **kw)
+            obj = q.first()
+            if not obj:
+                obj = constructor(*arg, **kw)
+                session.add(obj)
+        cache[key] = obj
+        return obj
+
+
+class UniqueMixin(BasicMixin):
+    @classmethod
+    def unique_hash(cls, *arg, **kw):
+        raise NotImplementedError()
+
+    @classmethod
+    def unique_filter(cls, query, *arg, **kw):
+        raise NotImplementedError()
+
+    @classmethod
+    def as_unique(cls, session, *arg, **kw):
+        return _unique(session, cls,
+                       cls.unique_hash,
+                       cls.unique_filter,
+                       cls, arg, kw)
+
+
+class Directorate(UniqueMixin, Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(80), nullable=False)
     code = Column(CHAR(4), unique=True)
@@ -59,8 +110,16 @@ class Directorate(MixinHelper, Base):
         self.code = code
         self.phone = phone
 
+    @classmethod
+    def unique_hash(cls, name, *args, **kwargs):
+        return name
 
-class Division(MixinHelper, Base):
+    @classmethod
+    def unique_filter(cls, query, name, *args, **kwargs):
+        return query.filter(Directorate.name == name)
+
+
+class Division(UniqueMixin, Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(80), nullable=False)
     code = Column(CHAR(4), unique=True)
@@ -78,8 +137,16 @@ class Division(MixinHelper, Base):
         self.phone = phone
         self.dir_id = dir_id
 
+    @classmethod
+    def unique_hash(cls, name, *args, **kwargs):
+        return name
 
-class Program(MixinHelper, Base):
+    @classmethod
+    def unique_filter(cls, query, name, *args, **kwargs):
+        return query.filter(Division.name == name)
+
+
+class Program(UniqueMixin, Base):
     id = Column(Integer, primary_key=True)
     code = Column(CHAR(4), unique=True, nullable=False)
     name = Column(String(80))
@@ -96,8 +163,16 @@ class Program(MixinHelper, Base):
         self.name = name
         self.div_id = div_id
 
+    @classmethod
+    def unique_hash(cls, code, *args, **kwargs):
+        return code
 
-class RelatedPrograms(MixinHelper, Base):
+    @classmethod
+    def unique_filter(cls, query, code, *args, **kwargs):
+        return query.filter(Program.code == code)
+
+
+class RelatedPrograms(UniqueMixin, Base):
     pgm1_id = Column(
         Integer, ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
@@ -122,8 +197,22 @@ class RelatedPrograms(MixinHelper, Base):
         CheckConstraint(pgm1_id != pgm2_id),
     )
 
+    def __init__(self, pgm1_id, pgm2_id):
+        self.pgm1_id = pgm1_id
+        self.pgm2_id = pgm2_id
 
-class Award(MixinHelper, Base):
+    @classmethod
+    def unique_hash(cls, pgm1_id, pgm2_id):
+        return (pgm1_id, pgm2_id)
+
+    @classmethod
+    def unique_filter(cls, query, pgm1_id, pgm2_id):
+        return query.filter(
+            RelatedPrograms.pgm1_id == pgm1_id and
+            RelatedPrograms.pgm2_id == pgm2_id)
+
+
+class Award(UniqueMixin, Base):
     id = Column(Integer, primary_key=True)
     code = Column(CHAR(7), nullable=False, unique=True)
     title = Column(String(100))
@@ -143,8 +232,16 @@ class Award(MixinHelper, Base):
         'affiliations', 'person',
         creator=lambda kwargs: Person.from_fullname(**kwargs))
 
+    @classmethod
+    def unique_hash(cls, code, *args, **kwargs):
+        return code
 
-class Funding(MixinHelper, Base):
+    @classmethod
+    def unique_filter(cls, query, code, *args, **kwargs):
+        return query.filter(Award.code == code)
+
+
+class Funding(UniqueMixin, Base):
     pgm_id = Column(
         Integer, ForeignKey('program.id', ondelete='CASCADE'),
         primary_key=True)
@@ -154,7 +251,7 @@ class Funding(MixinHelper, Base):
 
     program = saorm.relationship('Program', uselist=False, single_parent=True)
     award = saorm.relationship(
-        'Award', uselist=False, single_parent=True,
+        'Award', uselist=False, # single_parent=True,
         backref=saorm.backref(
             'funding_programs', cascade='all, delete-orphan',
             passive_deletes=True)
@@ -164,9 +261,17 @@ class Funding(MixinHelper, Base):
         self.program = program
         self.award = award
 
+    @classmethod
+    def unique_hash(cls, pgm_id, award_id):
+        return (pgm_id, award_id)
+
+    @classmethod
+    def unique_filter(cls, query, pgm, award):
+        return query.filter(Funding.pgm_id == pgm.id and
+                            Funding.award_id == award.id)
 
 
-class Publication(MixinHelper, Base):
+class Publication(BasicMixin, Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(255), nullable=False)
     abstract = Column(Text)
@@ -178,17 +283,17 @@ class Publication(MixinHelper, Base):
     award_id = Column(Integer, ForeignKey('award.id', ondelete='SET NULL'))
 
 
-class State(MixinHelper, Base):
+class State(BasicMixin, Base):
     abbr = Column(CHAR(2), primary_key=True)
     name = Column(String(14), nullable=False, unique=True)
 
 
-class Country(MixinHelper, Base):
+class Country(BasicMixin, Base):
     alpha2 = Column(CHAR(2), primary_key=True)
     name = Column(String(100), nullable=False)
 
 
-class Address(MixinHelper, Base):
+class Address(UniqueMixin, Base):
     id = Column(Integer, primary_key=True)
     street = Column(String(50), nullable=False)
     city = Column(String(50), nullable=False)
@@ -198,8 +303,22 @@ class Address(MixinHelper, Base):
     lat = Column(FLOAT)
     lon = Column(FLOAT)
 
+    __table_args__ = (
+        UniqueConstraint('street', 'city', 'state', 'country', 'zipcode',
+                         name='_address_uc'),
+    )
 
-class Institution(MixinHelper, Base):
+    @classmethod
+    def unique_hash(cls, street, city, state, country, zipcode,
+                    *args, **kwargs):
+        return (street, city, state, country, zipcode)
+
+    @classmethod
+    def unique_filter(cls, query, *args, **kwargs):
+        return query.filter_by(*args)
+
+
+class Institution(BasicMixin, Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     phone = Column(String(15), unique=True)
@@ -209,7 +328,7 @@ class Institution(MixinHelper, Base):
     people = association_proxy('_people', 'person')
 
 
-class Person(MixinHelper, Base):
+class Person(UniqueMixin, Base):
     id = Column(Integer, primary_key=True)
     fname = Column(String(50), nullable=False)
     lname = Column(String(50), nullable=False)
@@ -223,10 +342,22 @@ class Person(MixinHelper, Base):
     institutions = association_proxy('affiliations', 'institution')
     awards = association_proxy('roles', 'award')
 
+    __table_args__ = (
+        UniqueConstraint('fname', 'lname', 'mname', name='_person_name_uc'),
+    )
+
     @classmethod
-    def from_fullname(cls, name, email=None):
+    def unique_hash(cls, *args, **kwargs):
+        return args
+
+    @classmethod
+    def unique_filter(cls, query, *args, **kwargs):
+        return query.filter_by(*args)
+
+    @classmethod
+    def from_fullname(cls, session, name, email=None):
         parsed_name = nameparser.HumanName(name)
-        return cls(
+        return cls.as_unique(session,
             fname=parsed_name.first.strip('.'),
             lname=parsed_name.last.strip('.'),
             mname=parsed_name.middle.strip('.'),
@@ -252,7 +383,7 @@ class Person(MixinHelper, Base):
         return ' '.join(pieces)
 
 
-class Author(MixinHelper, Base):
+class Author(UniqueMixin, Base):
     person_id = Column(
         Integer, ForeignKey('person.id', ondelete='CASCADE'),
         primary_key=True)
@@ -269,12 +400,21 @@ class Author(MixinHelper, Base):
     publication = saorm.relationship(
         'Publication', uselist=False, single_parent=True)
 
-    def __init__(self, person_id, pub_id):
-        self.person_id = person_id
-        self.pub_id = pub_id
+    def __init__(self, person, pub):
+        self.person_id = person.id
+        self.pub_id = pub.id
+
+    @classmethod
+    def unique_hash(cls, person_id, award_id, *args, **kwargs):
+        return (person_id, award_id)
+
+    @classmethod
+    def unique_filter(cls, query, person_id, award_id, *args, **kwargs):
+        return query.filter(Role.person_id == person_id and
+                            Role.award_id == award_id)
 
 
-class Role(MixinHelper, Base):
+class Role(UniqueMixin, Base):
     person_id = Column(
         Integer, ForeignKey('person.id', ondelete='CASCADE'),
         primary_key=True)
@@ -292,8 +432,21 @@ class Role(MixinHelper, Base):
             'roles', cascade='all, delete-orphan', passive_deletes=True)
     )
 
+    def __init__(self, person, award):
+        self.person = person
+        self.award = award
 
-class Affiliation(MixinHelper, Base):
+    @classmethod
+    def unique_hash(cls, person, award, *args, **kwargs):
+        return (person.id, award.id)
+
+    @classmethod
+    def unique_filter(cls, query, person, award, *args, **kwargs):
+        return query.filter(Role.person_id == person.id and
+                            Role.award_id == award.id)
+
+
+class Affiliation(UniqueMixin, Base):
     person_id = Column(
         Integer, ForeignKey('person.id', ondelete='CASCADE'),
         primary_key=True)
@@ -322,10 +475,23 @@ class Affiliation(MixinHelper, Base):
             'affiliations', cascade='all, delete-orphan', passive_deletes=True)
     )
 
-    def __init__(self, person_id, institution_id, award_id):
-        self.person_id = person_id
-        self.institution_id = institution_id
-        self.award_id = award_id
+    def __init__(self, person, institution, award):
+        self.person = person
+        self.institution = institution
+        self.award = award
+
+    @classmethod
+    def unique_hash(cls, person, institution, award, *args, **kwargs):
+        return (person.id, institution.id, award.id)
+
+    @classmethod
+    def unique_filter(cls, query, person, institution, award,
+                      *args, **kwargs):
+        return query.filter(
+            Affiliation.person_id == person.id and
+            Affiliation.institution_id == institution.id and
+            Affiliation.award_id == award.id
+        )
 
 
 def main():
