@@ -7,15 +7,15 @@ import db
 from awards import AwardExplorer
 
 
-def parse_year(awards, year):
+def parse_year(award_explorer, year):
     """Parse all XML award records for a given year, creating DB records."""
     session = db.Session()
-    for soup in awards[year]:
-        parse_award(soup, session)
+    for award in award_explorer[year]:
+        parse_award(award, session)
     session.commit()
 
 
-def parse_award(soup, session):
+def parse_award(award, session):
     """Parse a single XML file and create all relevant records in DB.
 
     :type  soup: `bs4.BeautifulSoup`
@@ -24,27 +24,24 @@ def parse_award(soup, session):
     :param session: The active session object for the DB.
 
     """
-    arra_amount_str = soup.find('ARRAAmount').text.strip()
-    abstract = soup.find('AbstractNarration').text.strip()
-    award = db.Award(
+    new_award = db.Award.as_unique(session,
         # general info
-        code=soup.find('AwardID').text,
-        title=soup.find('AwardTitle').text,
-        abstract=abstract if abstract else None,
-        instrument=','.join(
-            [tag.find('Value').text for tag in soup('AwardInstrument')]),
+        code=award.id,
+        title=award.title,
+        abstract=award.abstract if award.abstract else None,
+        instrument=','.join(award.instruments),
 
         # all dates are in format: dd/mm/yyyy
-        effective=parse_date(soup.find('AwardEffectiveDate').text),
-        expires=parse_date(soup.find('AwardExpirationDate').text),
-        first_amended=parse_date(soup.find('MinAmdLetterDate').text),
-        last_amended=parse_date(soup.find('MaxAmdLetterDate').text),
+        effective=award.effective,
+        expires=award.expires,
+        first_amended=award.first_amended,
+        last_amended=award.last_amended,
 
         # money
-        amount=int(soup.find('AwardAmount').text),
-        arra_amount=int(arra_amount_str) if arra_amount_str else 0
+        amount=award.amount,
+        arra_amount=award.arra_amount
     )
-    session.add(award)
+    session.add(new_award)
     session.flush()
 
     # organization stuff
@@ -56,41 +53,53 @@ def parse_award(soup, session):
     # no instances of multiple <Organization>, <Directorate>, or <Division>
     # tags found.
 
-    directorate = db.Directorate(
-        name=soup.find('Directorate').find('LongName').text)
-    division = db.Division(
-        name=soup.find('Division').find('LongName').text)
+    directorate = db.Directorate.as_unique(session, award.directorate)
+    division = db.Division.as_unique(session, award.division)
     directorate.divisions.append(division)
+    session.add(directorate)
+
     # TODO: look up code and phone number for div/dir
 
-    for pgm in soup('ProgramElement'):
-        pgm = db.Program(pgm.find('Code').text, pgm.find('Text').text)
-        division.programs.append(pgm)
+    related_pgms = []
+    for pgmref in award.pgm_refs:
+        ref = db.Program.as_unique(session, pgmref['code'], pgmref['name'])
+        related_pgms.append(ref)
+        session.add(ref)
+    session.flush()
+
+    pgm_elements = []
+    for pgm in award.pgm_elements:
+        pgm = db.Program.as_unique(
+            session, pgm['code'], pgm['name'], division.id)
+        session.add(pgm)
         session.flush()
 
-        for pgm_tag in soup('ProgramReference'):
-            code = pgm_tag.find('Code').text
-            name = pgm_tag.find('Text').text
-            pgm.related_programs[code] = name
+        # Each program reference is related to each program element
+        for related_pgm in related_pgms:
+            relation = db.RelatedPrograms.as_unique(
+                session, pgm.id, related_pgm.id)
+            session.add(relation)
 
-        session.add(db.Funding(pgm, award))
+        # the pgm elements actually fund the award
+        session.add(db.Funding.as_unique(session, pgm, new_award))
 
-    session.add(directorate)
     session.flush()
 
     # institutions
     institutions = []
-    for inst_tag in soup('Institution'):
-        institution = db.Institution(
-            name=inst_tag.find('Name').text,
-            phone=inst_tag.find('PhoneNumber').text,
+    for inst in award.institutions:
+        institution = db.get_or_create(
+            session, db.Institution,
+            name=inst['name'],
+            phone=inst['phone']
         )
-        institution.address = db.Address(
-            street=normalize_street(inst_tag.find('StreetAddress').text),
-            city=inst_tag.find('CityName').text.upper(),
-            state=inst_tag.find('StateCode').text.upper(),
-            country=closest_country_code(inst_tag.find('CountryName').text),
-            zipcode=inst_tag.find('ZipCode').text
+        institution.address = db.Address.as_unique(
+            session,
+            street=inst['street'],
+            city=inst['city'],
+            state=inst['state'],
+            country=inst['country'],
+            zipcode=inst['zipcode']
         )
         session.add(institution)
         institutions.append(institution)
@@ -99,50 +108,34 @@ def parse_award(soup, session):
 
     # investigators
     people = []
-    for inv_tag in soup('Investigator'):
-        email = inv_tag.find('EmailAddress').text.strip()
-        person = db.Person.from_fullname(
-            name='{} {}'.format(
-                inv_tag.find('FirstName').text,
-                inv_tag.find('LastName').text),
-            email=email if email else None
+    for person in award.people:
+        new_person = db.Person.from_fullname(
+            session,
+            name=person['name'],
+            email=person['email']
         )
-        session.add(person)
-        people.append(person)
-
-        start_date = inv_tag.find('StartDate').text.strip()
-        start = parse_date(start_date) if start_date else award.effective
-        end_date = inv_tag.find('EndDate').text.strip()
-        end = parse_date(end_date) if end_date else award.expires
-
-        # TODO: deal with inexact matches
-        role_str = inv_tag.find('RoleCode').text.strip()
-        role = ROLES[role_str.lower()]
+        people.append(new_person)
+        session.add(new_person)
+        session.flush()
 
         # TODO: use actual ids after creating entries in DB
-        person.roles.append(
-            db.Role(award_id=award.id, role=role, start=start, end=end)
-        )
-
-    session.flush()
-
-    # program officers
-    for po_tag in soup('ProgramOfficer'):
-        name = po_tag.text.strip('\n')
-        person = db.Person.from_fullname(name)
-        session.add(person)
-        people.append(person)
-
-        person.roles.append(
-            db.Role(award_id=award.id, role='po', start=award.effective,
-                    end=award.expires)
+        session.add(
+            db.Role.as_unique(
+                session,
+                award_id=new_award.id,
+                person_id=new_person.id,
+                role=person['role'],
+                start=person['start'],
+                end=person['end'])
         )
 
     session.flush()
 
     for person in people:
         for institution in institutions:
-            session.add(db.Affiliation(person.id, institution.id, award.id))
+            session.add(
+                db.Affiliation.as_unique(session, person, institution, award)
+            )
 
     session.flush()
     return session
@@ -156,9 +149,23 @@ if __name__ == "__main__":
         sys.exit(1)
 
     g = awards.iterawards()
-    soup = g.next()
+    award = g.next()
+    award2 = g.next()
     session = db.Session()
-    parse_award(soup, session)
+
+    try:
+        parse_award(award, session)
+    except:
+        session.rollback()
+        print 'ROLLBACK'
+        raise
+
+    try:
+        parse_award(award2, session)
+    except:
+        session.rollback()
+        print 'ROLLBACK'
+        raise
 
     try:
         session.commit()
