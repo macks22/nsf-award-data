@@ -2,8 +2,10 @@ import re
 import sys
 
 import nameparser
+
 import sqlalchemy as sa
 import sqlalchemy.orm as saorm
+
 from sqlalchemy.orm.collections import attribute_mapped_collection
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.associationproxy import association_proxy
