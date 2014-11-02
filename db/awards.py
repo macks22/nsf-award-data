@@ -4,6 +4,7 @@ import datetime
 import cPickle as pickle
 from difflib import SequenceMatcher
 
+import ujson as json
 import nameparser
 
 from bs4 import BeautifulSoup as Soup
@@ -18,7 +19,8 @@ with open('../data/country-codes.pickle', 'r') as f:
 ROLES = {
     'principal investigator': 'pi',
     'co-principal investigator': 'copi',
-    'former principal investigator': 'fpi'
+    'former principal investigator': 'fpi',
+    'former co-principal investigator': 'fcopi'
 }
 
 
@@ -61,7 +63,10 @@ class AwardXML(object):
                             for tag in soup('AwardInstrument')]
 
         # all dates are in format: dd/mm/yyyy
-        find_date = lambda key: parse_date(find_text(key))
+        def find_date(key):
+            text = find_text(key)
+            return parse_date(text) if text else None
+
         self.effective = find_date('AwardEffectiveDate')
         self.expires = find_date('AwardExpirationDate')
         self.first_amended = find_date('MinAmdLetterDate')
@@ -74,9 +79,9 @@ class AwardXML(object):
 
         # organizational data
         tag = soup.find('Directorate')
-        self.directorate = tag.find('LongName').text if tag else u''
+        self.directorate = tag.find('LongName').text.upper() if tag else u''
         tag = soup.find('Division')
-        self.division = tag.find('LongName').text if tag else u''
+        self.division = tag.find('LongName').text.upper() if tag else u''
 
         # TODO: look up code and phone number for div/dir
         self.pgm_elements = [{
@@ -105,7 +110,7 @@ class AwardXML(object):
         for tag in soup('Investigator'):
             get_text = lambda key: tag.find(key).text
             email = get_text('EmailAddress').strip()
-            fullname = '{} {}'.format(
+            fullname = u'{} {}'.format(
                 get_text('FirstName'), get_text('LastName'))
 
             start_date = get_text('StartDate').strip()
@@ -133,6 +138,10 @@ class AwardXML(object):
                 'end': self.expires,
                 'email': None
             })
+
+    def write_json(fpath):
+        with open(fpath, 'w') as f:
+            json.dump(self, fpath)
 
 
 class NoAwardsFound(Exception):
