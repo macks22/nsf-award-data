@@ -76,9 +76,11 @@ def parse_award(award, session):
 
         # Each program reference is related to each program element
         for related_pgm in related_pgms:
-            relation = db.RelatedPrograms.as_unique(
-                session, pgm.id, related_pgm.id)
-            session.add(relation)
+            if related_pgm.id != pgm.id:
+                session.add(
+                    db.RelatedPrograms.as_unique(session, pgm.id,
+                        related_pgm.id)
+                    )
 
         # the pgm elements actually fund the award
         session.add(db.Funding.as_unique(session, pgm, new_award))
@@ -88,8 +90,8 @@ def parse_award(award, session):
     # institutions
     institutions = []
     for inst in award.institutions:
-        institution = db.get_or_create(
-            session, db.Institution,
+        institution = db.Institution.as_unique(
+            session,
             name=inst['name'],
             phone=inst['phone']
         )
@@ -122,8 +124,8 @@ def parse_award(award, session):
         session.add(
             db.Role.as_unique(
                 session,
-                award_id=new_award.id,
-                person_id=new_person.id,
+                award=new_award,
+                person=new_person,
                 role=person['role'],
                 start=person['start'],
                 end=person['end'])
@@ -134,7 +136,8 @@ def parse_award(award, session):
     for person in people:
         for institution in institutions:
             session.add(
-                db.Affiliation.as_unique(session, person, institution, award)
+                db.Affiliation.as_unique(
+                    session, person, institution, new_award)
             )
 
     session.flush()
@@ -148,20 +151,12 @@ if __name__ == "__main__":
         print '{} <zipdir>'.format(sys.argv[0])
         sys.exit(1)
 
-    g = awards.iterawards()
-    award = g.next()
-    award2 = g.next()
+    awardgen = awards[1990]
     session = db.Session()
 
     try:
-        parse_award(award, session)
-    except:
-        session.rollback()
-        print 'ROLLBACK'
-        raise
-
-    try:
-        parse_award(award2, session)
+        for award in awardgen:
+            parse_award(award, session)
     except:
         session.rollback()
         print 'ROLLBACK'
