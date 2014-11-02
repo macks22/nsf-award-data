@@ -2,7 +2,6 @@ import re
 import sys
 
 import nameparser
-
 import sqlalchemy as sa
 import sqlalchemy.orm as saorm
 
@@ -16,84 +15,13 @@ from sqlalchemy import (
     ForeignKey, CheckConstraint, UniqueConstraint
 )
 
+from mixins import BasicMixin, UniqueMixin
+
 
 engine = sa.create_engine('sqlite:///nsf-award-data.db', echo=True)
 session_factory = saorm.sessionmaker(bind=engine)
 Session = saorm.scoped_session(session_factory)
 Base = declarative_base()
-
-
-def get_or_create(session, model, **kwargs):
-    instance = session.query(model).filter_by(**kwargs).first()
-    if instance:
-        return instance
-    else:
-        instance = model(**kwargs)
-        session.add(instance)
-        return instance
-
-
-class BasicMixin(object):
-
-    @declared_attr
-    def __tablename__(cls):
-        """Convert "CamelCase" class names to "camel_case" table names."""
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', cls.__name__)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-
-    def __repr__(self):
-        def reprs():
-            for col in self.__table__.c:
-                yield col.name, repr(getattr(self, col.name))
-
-        def format(seq):
-            for key, value in seq:
-                yield '{}="{}"'.format(key, value)
-
-        args = '({})'.format(', '.join(format(reprs())))
-        classy = type(self).__name__
-        return classy + args
-
-
-def _unique(session, cls, hashfunc, queryfunc, constructor, arg, kw):
-    """Provide the "guts" to the unique recipe. This function is given a
-    Session to work with, and associates a dictionary with the Session() which
-    keeps track of current "unique" keys.
-    """
-    cache = getattr(session, '_unique_cache', None)
-    if cache is None:
-        session._unique_cache = cache = {}
-
-    key = (cls, hashfunc(*arg, **kw))
-    if key in cache:
-        return cache[key]
-    else:
-        with session.no_autoflush:
-            q = session.query(cls)
-            q = queryfunc(q, *arg, **kw)
-            obj = q.first()
-            if not obj:
-                obj = constructor(*arg, **kw)
-                session.add(obj)
-        cache[key] = obj
-        return obj
-
-
-class UniqueMixin(BasicMixin):
-    @classmethod
-    def unique_hash(cls, *arg, **kw):
-        raise NotImplementedError()
-
-    @classmethod
-    def unique_filter(cls, query, *arg, **kw):
-        raise NotImplementedError()
-
-    @classmethod
-    def as_unique(cls, session, *arg, **kw):
-        return _unique(session, cls,
-                       cls.unique_hash,
-                       cls.unique_filter,
-                       cls, arg, kw)
 
 
 class Directorate(UniqueMixin, Base):
@@ -318,7 +246,7 @@ class Address(UniqueMixin, Base):
         return query.filter_by(*args)
 
 
-class Institution(BasicMixin, Base):
+class Institution(UniqueMixin, Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False)
     phone = Column(String(15), unique=True)
@@ -326,6 +254,14 @@ class Institution(BasicMixin, Base):
     address = saorm.relationship('Address', uselist=False)
 
     people = association_proxy('_people', 'person')
+
+    @classmethod
+    def unique_hash(cls, name, phone, *args, **kwargs):
+        return phone
+
+    @classmethod
+    def unique_filter(cls, query, *args, **kwargs):
+        return query.filter_by(*args)
 
 
 class Person(UniqueMixin, Base):
@@ -432,9 +368,12 @@ class Role(UniqueMixin, Base):
             'roles', cascade='all, delete-orphan', passive_deletes=True)
     )
 
-    def __init__(self, person, award):
+    def __init__(self, person, award, role, start, end):
         self.person = person
         self.award = award
+        self.role = role
+        self.start = start
+        self.end = end
 
     @classmethod
     def unique_hash(cls, person, award, *args, **kwargs):
